@@ -87,6 +87,38 @@ const getUsers = asyncHandler(async (req, res) => {
     res.json(users);
 });
 
+// @desc    Get single user by ID
+// @route   GET /api/auth/user/:id
+// @access  Private
+const getUserById = asyncHandler(async (req, res) => {
+    const user = await User.findById(req.params.id).select('-password -secretCode');
+    if (!user) {
+        res.status(404);
+        throw new Error('User not found');
+    }
+    res.json(user);
+});
+
+// @desc    Get current logged-in user (session restore)
+// @route   GET /api/auth/me
+// @access  Private
+const getMe = asyncHandler(async (req, res) => {
+    const user = await User.findById(req.user._id).select('-password -secretCode');
+    if (!user) {
+        res.status(404);
+        throw new Error('User not found');
+    }
+    res.json({
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        mobile: user.mobile,
+        role: user.role,
+        profileImage: user.profileImage,
+        hasSecretCode: !!user.secretCode,
+    });
+});
+
 // @desc    Update user profile
 // @route   PUT /api/auth/profile
 // @access  Private
@@ -176,6 +208,8 @@ module.exports = {
     registerUser,
     loginUser,
     getUsers,
+    getUserById,
+    getMe,
     updateProfile,
     changePassword,
     setSecretCode,
