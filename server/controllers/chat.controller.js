@@ -1,4 +1,6 @@
 const Chat = require('../models/chat.model');
+const SecretContact = require('../models/secretContact.model');
+const User = require('../models/user.model');
 const asyncHandler = require('express-async-handler');
 
 // @desc    Get chat history between two users
@@ -31,6 +33,30 @@ const sendMessage = asyncHandler(async (req, res) => {
         message,
         room
     });
+
+    // Ensure the receiver has the sender in their secret contacts list
+    const sender = await User.findById(senderId);
+    if (sender) {
+        let contact = await SecretContact.findOne({
+            owner: receiverId,
+            $or: [
+                { contactUserId: senderId },
+                { mobile: sender.mobile }
+            ]
+        });
+
+        if (!contact) {
+            await SecretContact.create({
+                owner: receiverId,
+                name: sender.name,
+                mobile: sender.mobile,
+                contactUserId: senderId
+            });
+        } else if (!contact.contactUserId) {
+            contact.contactUserId = senderId;
+            await contact.save();
+        }
+    }
 
     res.status(201).json(newChat);
 });

@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const path = require('path');
-const { registerUser, loginUser, getUsers, getUserById, getMe, updateProfile, changePassword, setSecretCode, verifySecretCode } = require('../controllers/user.controller');
+const { registerUser, loginUser, getUsers, getUserById, getMe, updateProfile, changePassword, setSecretCode, verifySecretCode, resetSecretCode } = require('../controllers/user.controller');
 const { protect, admin } = require('../middleware/auth.middleware');
 
 // Multer config for profile images
@@ -23,6 +23,7 @@ router.get('/me', protect, getMe);
 router.put('/profile', protect, upload.single('profileImage'), updateProfile);
 router.put('/change-password', protect, changePassword);
 router.put('/secret-code', protect, setSecretCode);
+router.put('/reset-secret-code', protect, resetSecretCode);
 router.post('/verify-secret-code', protect, verifySecretCode);
 
 module.exports = router;

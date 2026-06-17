@@ -4,13 +4,25 @@ const jwt = require('jsonwebtoken');
 const asyncHandler = require('express-async-handler');
 const path = require('path');
 
+const fs = require('fs');
+
+const logDebug = (msg) => {
+    try {
+        fs.appendFileSync(path.join(__dirname, '../debug.log'), `[${new Date().toISOString()}] [controller] ${msg}\n`);
+    } catch (e) {
+        console.error(e);
+    }
+};
+
 // @desc    Register a new user
 // @route   POST /api/users/register
 // @access  Public
 const registerUser = asyncHandler(async (req, res) => {
     const { name, email, password, mobile, role } = req.body;
+    logDebug(`registerUser called: body=${JSON.stringify(req.body)}`);
 
     if (!name || !email || !password || !mobile) {
+        logDebug(`registerUser failed: missing fields (name=${name}, email=${email}, mobile=${mobile})`);
         res.status(400);
         throw new Error('Please add all fields');
     }
@@ -18,6 +30,7 @@ const registerUser = asyncHandler(async (req, res) => {
     const userExists = await User.findOne({ email });
 
     if (userExists) {
+        logDebug(`registerUser failed: User already exists (${email})`);
         res.status(400);
         throw new Error('User already exists');
     }
@@ -91,7 +104,7 @@ const getUsers = asyncHandler(async (req, res) => {
 // @route   GET /api/auth/user/:id
 // @access  Private
 const getUserById = asyncHandler(async (req, res) => {
-    const user = await User.findById(req.params.id).select('-password -secretCode');
+    const user = await User.findById(req.params.id).select('-password');
     if (!user) {
         res.status(404);
         throw new Error('User not found');
@@ -103,7 +116,7 @@ const getUserById = asyncHandler(async (req, res) => {
 // @route   GET /api/auth/me
 // @access  Private
 const getMe = asyncHandler(async (req, res) => {
-    const user = await User.findById(req.user._id).select('-password -secretCode');
+    const user = await User.findById(req.user._id).select('-password');
     if (!user) {
         res.status(404);
         throw new Error('User not found');
@@ -188,6 +201,51 @@ const setSecretCode = asyncHandler(async (req, res) => {
     res.json({ message: 'Secret code set successfully' });
 });
 
+// @desc    Reset secret code (PIN)
+// @route   PUT /api/auth/reset-secret-code
+// @access  Private
+const resetSecretCode = asyncHandler(async (req, res) => {
+    const { oldCode, newCode } = req.body;
+    logDebug(`resetSecretCode called: body=${JSON.stringify(req.body)}, user=${req.user ? req.user.email : 'null'}`);
+    const user = await User.findById(req.user._id);
+
+    if (!user) { 
+        logDebug(`resetSecretCode failed: User not found`);
+        res.status(404); 
+        throw new Error('User not found'); 
+    }
+    if (!user.secretCode) { 
+        logDebug(`resetSecretCode failed: Secret code not set`);
+        res.status(400); 
+        throw new Error('Secret code not set'); 
+    }
+    if (!oldCode || !newCode || newCode.length < 4) { 
+        logDebug(`resetSecretCode failed: Invalid parameters (oldCode=${oldCode}, newCode=${newCode})`);
+        res.status(400); 
+        throw new Error('Please provide valid old and new code'); 
+    }
+    if (oldCode === newCode) { 
+        logDebug(`resetSecretCode failed: New same as old`);
+        res.status(400); 
+        throw new Error('New passcode cannot be the same as the old passcode'); 
+    }
+
+    const isMatch = await bcrypt.compare(oldCode, user.secretCode);
+    logDebug(`resetSecretCode isMatch: ${isMatch}`);
+    if (!isMatch) { 
+        logDebug(`resetSecretCode failed: Old code is incorrect`);
+        res.status(401); 
+        throw new Error('Old secret code is incorrect'); 
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    user.secretCode = await bcrypt.hash(newCode, salt);
+    await user.save();
+
+    logDebug(`resetSecretCode success!`);
+    res.json({ message: 'Secret code reset successfully' });
+});
+
 // @desc    Verify secret code (PIN)
 // @route   POST /api/auth/verify-secret-code
 // @access  Private
@@ -213,5 +271,6 @@ module.exports = {
     updateProfile,
     changePassword,
     setSecretCode,
-    verifySecretCode
+    verifySecretCode,
+    resetSecretCode
 };
